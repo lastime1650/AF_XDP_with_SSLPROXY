@@ -43,13 +43,6 @@ It is designed to inspect, intercept, and manage encrypted traffic with minimal 
 
 The system operates by hooking into the NIC using eBPF/XDP, redirecting specific traffic (based on Queue Index) to user-space memory (UMEM).
 
-<div align="center">
-  <!-- 
-    NOTE: Please ensure the image file is located at the path below. 
-    You can create a 'docs' folder and put the image there.
-  -->
-  <img src="./architecture_diagram.png" alt="AF_XDP Architecture Diagram" width="100%">
-</div>
 
 ### Workflow Description
 1.  **Ingress (XDP Layer):** Traffic arrives at the NIC (WAN/LAN). The eBPF program validates the `RX Queue Index` and redirects packets to the `AF_XDP` socket via the `XSKMAP`.
