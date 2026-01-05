@@ -423,7 +423,7 @@ private:
     bool _init()
     {
         //test
-        CTX.Ssl_Manager.LoadConfig( "/root/VATEX/NDR_SENSOR/Certs/default_sensor_cert.crt", "/root/VATEX/NDR_SENSOR/Certs/default_sensor_private.key" );
+        CTX.Ssl_Manager.LoadConfig( "Certs/default_sensor_cert.crt", "Certs/default_sensor_private.key" );
 
         auto interfaces = interfaceM.LOAD_INTERFACES();
         for(auto&[ifindex, info] : interfaces)
