@@ -24,7 +24,6 @@ It is designed to inspect, intercept, and manage encrypted traffic with minimal 
 
 ### ⚡ **High-Performance Networking (AF_XDP)**
 *   **Zero-Copy Packet Processing:** Direct DMA access to NIC buffers using `UMEM`, bypassing sk_buff and kernel overhead.
-*   **Lock-Free Design:** Per-queue/Per-CPU worker threads with minimal lock contention.
 *   **eBPF Integration:** Custom XDP programs for directing traffic to user-space sockets.
 
 ### 🔒 **Transparent SSL/TLS Proxy (The Core)**
@@ -42,28 +41,26 @@ It is designed to inspect, intercept, and manage encrypted traffic with minimal 
 
 ## 🏗️ Architecture Overview
 
-```mermaid
-graph TD
-    User[Client Host] -->|HTTPS Request| NIC[Network Interface]
-    NIC -->|AF_XDP Redirect| UMEM[UMEM Ring Buffer]
-    
-    subgraph "User-Space Engine"
-        Worker[CPU Worker Thread]
-        NAT[NAT Manager]
-        SSL[SSL Manager]
-        
-        UMEM --> Worker
-        Worker --> NAT
-        NAT -->|Port Translation| SSL
-        
-        SSL -->|1. TCP Handshake| TCP_Stack[Virtual TCP Stack]
-        TCP_Stack -->|2. SSL Handshake| OpenSSL
-        OpenSSL -->|3. Decrypt/Encrypt| Logic[Inspection Logic]
-    end
-    
-    Logic -->|Re-encrypt| NIC
-    NIC -->|Forward| Server[Real Server]
-```
+The system operates by hooking into the NIC using eBPF/XDP, redirecting specific traffic (based on Queue Index) to user-space memory (UMEM).
+
+<div align="center">
+  <!-- 
+    NOTE: Please ensure the image file is located at the path below. 
+    You can create a 'docs' folder and put the image there.
+  -->
+  <img src="./architecture_diagram.png" alt="AF_XDP Architecture Diagram" width="100%">
+</div>
+
+### Workflow Description
+1.  **Ingress (XDP Layer):** Traffic arrives at the NIC (WAN/LAN). The eBPF program validates the `RX Queue Index` and redirects packets to the `AF_XDP` socket via the `XSKMAP`.
+2.  **User-Space Processing:**
+    *   **AF_XDP Socket Thread:** Polling threads fetch packets from `RX_UMEM`.
+    *   **Traffic Classification:** Checks if the traffic is targeting critical ports (e.g., 443).
+3.  **Logic Execution:**
+    *   **SSL Manager:** If traffic is HTTPS, it enters the custom TCP/TLS stack for decryption/re-encryption.
+    *   **NAT Manager:** Non-HTTPS traffic undergoes standard Network Address Translation.
+4.  **Shared State:** `Shared_Tx` and `CTX` blocks synchronize socket info and system interface data between WAN and LAN contexts.
+5.  **Egress:** Processed packets are written back to `TX Ring` and sent out to the opposite interface (LAN -> WAN or WAN -> LAN).
 
 ---
 
@@ -90,7 +87,7 @@ Modern browsers (Chrome, Edge) strictly enforce X.509 standards, especially for 
 ## 💻 Code Structure
 
 *   **`global.hpp`**: System-wide definitions, BPF headers, and 5-tuple hashing.
-*   **`af_xdp_processing.hpp`**: The heart of the packet engine. Manages UMEM, RX/TX Rings, and CPU affinity.
+*   **`af_xdp_processing.hpp`**: The heart of the packet engine. Manages UMEM, RX/TX Rings
 *   **`ssl_manager.hpp`**: **(Highlight)** Contains the `OpenSSL` wrapper, Dynamic Certificate Authority, and the custom TCP/IP state machine for MITM.
 *   **`nat_manager.hpp`**: Handles SNAT/DNAT logic with thread-safe sharded maps.
 *   **`interfacemanager.hpp`**: Discovers system interfaces, gateways, and ARP tables.
@@ -115,8 +112,8 @@ make -j$(nproc)
 ### Run
 *Root privileges are required to load eBPF programs.*
 ```bash
-# Ensure your Root CA is generated at /root/VATEX/NDR_SENSOR/Certs/
-sudo ./xdp_proxy_engine
+# Ensure your Root CA is generated at ./Certs/
+sudo ./IPS_APP
 ```
 
 ### Root CA Installation
